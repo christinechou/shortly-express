@@ -2,7 +2,7 @@ var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
-
+var session = require('express-session');
 
 var db = require('./app/config');
 var Users = require('./app/collections/users');
@@ -21,19 +21,29 @@ app.use(bodyParser.json());
 // Parse forms (signup/login)
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
+app.use(session({ secret: 'keyboard cat', cookie: { maxAge: 60000 }, resave: true, saveUninitialized: true}));
 
+var requireAuth = function(req, res, next) {
+  if (req.session.username) {
+    next();
+  } else {
+    res.redirect('/login');
+  }
+  // res.redirect('/foo');
+  // next();
+};
 
-app.get('/', 
+app.get('/', requireAuth,
 function(req, res) {
   res.render('index');
 });
 
-app.get('/create', 
+app.get('/create', requireAuth,
 function(req, res) {
   res.render('index');
 });
 
-app.get('/links', 
+app.get('/links', requireAuth,
 function(req, res) {
   Links.reset().fetch().then(function(links) {
     res.status(200).send(links.models);
@@ -82,6 +92,7 @@ app.post('/signup', function(req, res) {
     password: req.body.password
   })
   .then(function(newUser) {
+    req.session.username = req.body.username;
     res.redirect('/');
   });
 });
@@ -94,10 +105,17 @@ app.post('/login', function(req, res) {
     if (!userObj) {
       res.redirect('/login');
     } else {
+      req.session.username = username;
       res.redirect('/');
     }
   });
 });
+
+app.get('/login', 
+function(req, res) {
+  res.render('login');
+});
+
 
 /************************************************************/
 // Handle the wildcard route last - if all other routes fail
