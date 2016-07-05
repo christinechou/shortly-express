@@ -14,6 +14,24 @@ var User = db.Model.extend({
       model.unset('password');
     });
   }
+}, {
+  authenticate: function(username, password) {
+    return new User({username: username})
+    .fetch()
+    .then(function (userObj) {
+      return new Promise((resolve, reject) => {
+        if (!userObj) {
+          reject('Incorrect username');
+        } else {
+          if (bcrypt.compareSync(password, userObj.get('hash'))) {
+            resolve(userObj.get('username'));
+          } else {
+            reject('Incorrect password');
+          }
+        }
+      });
+    });
+  } 
 });
 
 module.exports = User;

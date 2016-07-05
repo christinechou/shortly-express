@@ -21,7 +21,7 @@ app.use(bodyParser.json());
 // Parse forms (signup/login)
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
-app.use(session({ secret: 'keyboard cat', cookie: { maxAge: 60000 }, resave: true, saveUninitialized: true}));
+app.use(session({ secret: 'keyboard cat', cookie: { maxAge: 60000 * 60 * 24 * 7 }, resave: true, saveUninitialized: true}));
 
 var requireAuth = function(req, res, next) {
   if (req.session.username) {
@@ -29,8 +29,6 @@ var requireAuth = function(req, res, next) {
   } else {
     res.redirect('/login');
   }
-  // res.redirect('/foo');
-  // next();
 };
 
 app.get('/', requireAuth,
@@ -50,7 +48,7 @@ function(req, res) {
   });
 });
 
-app.post('/links', 
+app.post('/links', requireAuth,
 function(req, res) {
   var uri = req.body.url;
 
@@ -86,34 +84,43 @@ function(req, res) {
 // Write your authentication routes here
 /************************************************************/
 
+// "promise consumer factory" that creates middleware 
+var sessionLogin = function(req, res) {
+  return username => {
+    req.session.username = username;
+    res.redirect('/');
+  };
+};
+
 app.post('/signup', function(req, res) {
   Users.create({
     username: req.body.username,
     password: req.body.password
   })
-  .then(function(newUser) {
-    req.session.username = req.body.username;
-    res.redirect('/');
-  });
+  .then(sessionLogin(req, res));
 });
 
-app.post('/login', function(req, res) {
-  var username = req.body.username;
-  new User({username: username})
-  .fetch()
-  .then(function (userObj) {
-    if (!userObj) {
-      res.redirect('/login');
-    } else {
-      req.session.username = username;
-      res.redirect('/');
-    }
-  });
+app.post('/login', function(req, res, next) {
+  User.authenticate(req.body.username, req.body.password)
+  .then(sessionLogin(req, res))
+  .catch(errMsg => { res.redirect('/login'); });
 });
 
 app.get('/login', 
 function(req, res) {
   res.render('login');
+});
+
+app.get('/signup',
+function(req, res) {
+  res.render('signup');
+});
+
+app.get('/logout',
+function(req, res) {
+  req.session.destroy((err) => {
+    res.redirect('/login');
+  });
 });
 
 
